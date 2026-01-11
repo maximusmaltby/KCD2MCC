@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using System.Windows.Forms;
 using Microsoft.Win32;
 using System.Runtime.InteropServices;
+using System.Text;
 
 namespace KCD2ModConflictChecker
 {
@@ -56,6 +57,26 @@ namespace KCD2ModConflictChecker
             if (string.IsNullOrEmpty(steamPath)) return null;
             string candidate = Path.Combine(steamPath, "steamapps", "common", "KingdomComeDeliverance2");
             return Directory.Exists(candidate) ? candidate : null;
+        }
+
+        public bool CheckWorkshopStatus(string steamPath)
+        {
+            if (string.IsNullOrEmpty(steamPath)) return false;
+            
+            string workshopPath = Path.Combine(steamPath, "steamapps", "workshop", "content", "1771300");
+            
+            if (Directory.Exists(workshopPath))
+            {
+                try 
+                {
+                    return Directory.GetDirectories(workshopPath).Length > 0;
+                }
+                catch 
+                {
+                    return false;
+                }
+            }
+            return false;
         }
 
         private List<string> ScanPakContents(string pakPath)
@@ -211,7 +232,9 @@ namespace KCD2ModConflictChecker
         private DarkTextBox _txtSteam = null!;
         private DarkTextBox _txtKcd2 = null!;
         private DarkButton _btnScan = null!;
+        private DarkButton _btnSave = null!;
         private DarkRichTextBox _rtbLog = null!;
+        private Label _lblWorkshopStatus = null!; 
 
         public static Color ColorBg = Color.FromArgb(32, 32, 32);
         public static Color ColorPanel = Color.FromArgb(45, 45, 45);
@@ -252,7 +275,7 @@ namespace KCD2ModConflictChecker
             if (IsConfigValid())
                 ShowMainView();
             else
-                ShowSetupView();
+                ShowSetupView(true);
         }
 
         private void InitializeCustomComponents()
@@ -269,27 +292,32 @@ namespace KCD2ModConflictChecker
             lblSetupTitle.TextAlign = ContentAlignment.MiddleCenter;
             _pnlSetup.Controls.Add(lblSetupTitle);
 
-            _pnlSetup.Controls.Add(CreateLabel("Steam Installation:", 10, FontStyle.Regular, 80, 250));
-            _txtSteam = new DarkTextBox { Location = new Point(230, 250), Width = 400 };
-            _pnlSetup.Controls.Add(_txtSteam);
-            var btnBrowseSteam = new DarkButton { Text = "Browse", Location = new Point(640, 248), Size = new Size(80, 26) };
-            btnBrowseSteam.Click += (s, e) => { string? p = BrowseFolder(); if (p != null) _txtSteam.Text = p; };
-            _pnlSetup.Controls.Add(btnBrowseSteam);
-
-            _pnlSetup.Controls.Add(CreateLabel("KCD2 Installation:", 10, FontStyle.Regular, 80, 300));
-            _txtKcd2 = new DarkTextBox { Location = new Point(230, 300), Width = 400 };
+            _pnlSetup.Controls.Add(CreateLabel("KCD2 Installation:", 10, FontStyle.Regular, 80, 250));
+            _txtKcd2 = new DarkTextBox { Location = new Point(230, 250), Width = 400 };
             _pnlSetup.Controls.Add(_txtKcd2);
-            var btnBrowseKcd = new DarkButton { Text = "Browse", Location = new Point(640, 298), Size = new Size(80, 26) };
+            var btnBrowseKcd = new DarkButton { Text = "Browse", Location = new Point(640, 248), Size = new Size(80, 26) };
             btnBrowseKcd.Click += (s, e) => { string? p = BrowseFolder(); if (p != null) _txtKcd2.Text = p; };
             _pnlSetup.Controls.Add(btnBrowseKcd);
 
+            var lblOptional = CreateLabel("Optional", 10, FontStyle.Italic, 0, 300);
+            lblOptional.ForeColor = Color.Gray;
+            _pnlSetup.Controls.Add(lblOptional);
+
+            _pnlSetup.Controls.Add(CreateLabel("Steam Installation:", 10, FontStyle.Regular, 80, 300));
+
+            _txtSteam = new DarkTextBox { Location = new Point(230, 300), Width = 400 };
+            _pnlSetup.Controls.Add(_txtSteam);
+            var btnBrowseSteam = new DarkButton { Text = "Browse", Location = new Point(640, 298), Size = new Size(80, 26) };
+            btnBrowseSteam.Click += (s, e) => { string? p = BrowseFolder(); if (p != null) _txtSteam.Text = p; };
+            _pnlSetup.Controls.Add(btnBrowseSteam);
+
             var btnDetect = new DarkButton { Text = "Auto-Detect Paths", Location = new Point(250, 370), Size = new Size(300, 35) };
-            btnDetect.Click += (s, e) => RunAutoDetect();
+            btnDetect.Click += (s, e) => RunAutoDetect(false);
             _pnlSetup.Controls.Add(btnDetect);
 
-            var btnSave = new DarkButton { Text = "Continue", Location = new Point(250, 430), Size = new Size(300, 45), BackColor = ColorAccent };
-            btnSave.Click += (s, e) => ValidateAndSave();
-            _pnlSetup.Controls.Add(btnSave);
+            _btnSave = new DarkButton { Text = "Continue", Location = new Point(250, 430), Size = new Size(300, 45), BackColor = ColorAccent };
+            _btnSave.Click += (s, e) => ValidateAndSave();
+            _pnlSetup.Controls.Add(_btnSave);
             _pnlContainer.Controls.Add(_pnlSetup);
 
             _pnlMain = new Panel { Dock = DockStyle.Fill, Visible = false };
@@ -300,8 +328,16 @@ namespace KCD2ModConflictChecker
             lblMainTitle.AutoSize = true;
             topBar.Controls.Add(lblMainTitle);
             
+            _lblWorkshopStatus = CreateLabel("", 9, FontStyle.Regular);
+            _lblWorkshopStatus.ForeColor = Color.Gray;
+            _lblWorkshopStatus.AutoSize = false;
+            _lblWorkshopStatus.TextAlign = ContentAlignment.MiddleRight;
+            _lblWorkshopStatus.Size = new Size(250, 30);
+            _lblWorkshopStatus.Location = new Point(380, 10); 
+            topBar.Controls.Add(_lblWorkshopStatus);
+
             var btnSettings = new DarkButton { Text = "⚙ Settings", Size = new Size(100, 30), Location = new Point(640, 10) };
-            btnSettings.Click += (s, e) => ShowSetupView();
+            btnSettings.Click += (s, e) => ShowSetupView(false);
             topBar.Controls.Add(btnSettings);
             _pnlMain.Controls.Add(topBar);
 
@@ -353,7 +389,7 @@ namespace KCD2ModConflictChecker
             return null;
         }
 
-        private void RunAutoDetect()
+        private void RunAutoDetect(bool silent = false)
         {
             string? steam = _scanner.GetSteamPath();
             if (steam != null)
@@ -361,20 +397,27 @@ namespace KCD2ModConflictChecker
                 _txtSteam.Text = steam;
                 string? kcd = _scanner.FindKcd2Path(steam);
                 if (kcd != null) _txtKcd2.Text = kcd;
-                else MessageBox.Show("Found Steam, but KCD2 not found.", "Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                else if (!silent) MessageBox.Show("Found Steam, but KCD2 not found.", "Detect", MessageBoxButtons.OK, MessageBoxIcon.Information);
             }
-            else MessageBox.Show("Could not auto-detect Steam.", "Detect", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            else if (!silent) MessageBox.Show("Could not auto-detect Steam.", "Detect", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
 
         private void ValidateAndSave()
         {
-            if (!Directory.Exists(_txtSteam.Text) || !Directory.Exists(_txtKcd2.Text))
+            if (!Directory.Exists(_txtKcd2.Text.Trim()))
             {
-                MessageBox.Show("Please enter valid paths.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                MessageBox.Show("Please enter a valid KCD2 installation path.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
                 return;
             }
-            _config.SteamPath = _txtSteam.Text;
-            _config.Kcd2Path = _txtKcd2.Text;
+
+            if (!string.IsNullOrWhiteSpace(_txtSteam.Text) && !Directory.Exists(_txtSteam.Text.Trim()))
+            {
+                MessageBox.Show("The entered Steam path is invalid. Clear it if you want to skip Workshop scanning.", "Error", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                return;
+            }
+
+            _config.SteamPath = _txtSteam.Text.Trim();
+            _config.Kcd2Path = _txtKcd2.Text.Trim();
             SaveConfig();
             ShowMainView();
         }
@@ -384,7 +427,6 @@ namespace KCD2ModConflictChecker
             _btnScan.Enabled = false;
             _btnScan.Text = "Scanning...";
             _rtbLog.Clear();
-            _rtbLog.AppendText($"[{DateTime.Now.ToLongTimeString()}] Scan started...\n");
             
             Task.Run(() => {
                 var conflicts = _scanner.RunFullScan(_config.Kcd2Path, _config.SteamPath);
@@ -397,71 +439,135 @@ namespace KCD2ModConflictChecker
             _btnScan.Enabled = true;
             _btnScan.Text = "SCAN FOR CONFLICTS";
             
-            _rtbLog.AppendText($"[{DateTime.Now.ToLongTimeString()}] Scan complete.\n\n");
-            _rtbLog.SelectionFont = new Font("Segoe UI", 12, FontStyle.Bold);
+            var rtf = new StringBuilder();
+            rtf.Append(@"{\rtf1\ansi\deff0");
+            rtf.Append(@"{\fonttbl{\f0\fnil\fcharset0 Segoe UI;}{\f1\fnil\fcharset0 Consolas;}{\f2\fnil\fcharset0 Segoe UI Emoji;}}");
+            
+            rtf.Append(@"{\colortbl;" + 
+                       ColorToRtf(ColorText) + 
+                       ColorToRtf(Color.LightGreen) + 
+                       ColorToRtf(Color.FromArgb(255, 100, 100)) + 
+                       ColorToRtf(Color.Yellow) + 
+                       ColorToRtf(Color.Gray) + 
+                       "}");
+
+            rtf.Append(@"\viewkind4\uc1\pard\cf1\f0\fs24 "); 
+
+            rtf.Append($@"\b [{DateTime.Now.ToLongTimeString()}] Scan complete.\b0\par\par ");
 
             if (conflicts.Count == 0)
             {
-                _rtbLog.SelectionColor = Color.LightGreen;
-                _rtbLog.AppendText("✅ No conflicts found!\n\n");
-                _rtbLog.SelectionColor = ColorText;
-                _rtbLog.SelectionFont = new Font("Consolas", 10, FontStyle.Regular);
-                _rtbLog.AppendText("Scanned Mods:\n");
-                foreach (var mod in _scanner.ScannedMods) _rtbLog.AppendText($" - {mod}\n");
+                rtf.Append(@"\cf2\b\f2 \u9989? No conflicts found!\b0\f0\par\par ");
+                rtf.Append(@"\cf1\f1\fs20 Scanned Mods:\par ");
+                
+                foreach (var mod in _scanner.ScannedMods)
+                {
+                    rtf.Append($@" - {EscapeRtf(mod)}\par ");
+                }
             }
             else
             {
-                _rtbLog.SelectionColor = Color.FromArgb(255, 100, 100);
-                _rtbLog.AppendText($"⚠️ FOUND {conflicts.Count} CONFLICTING FILES ⚠️\n\n");
-                _rtbLog.SelectionColor = ColorText;
-                _rtbLog.SelectionFont = new Font("Consolas", 10, FontStyle.Regular);
-
                 var grouped = new Dictionary<string, List<string>>();
+                var uniqueModNames = new HashSet<string>();
+
                 foreach (var kvp in conflicts)
                 {
                     string key = string.Join("\n", kvp.Value); 
                     if (!grouped.ContainsKey(key)) grouped[key] = new List<string>();
                     grouped[key].Add(kvp.Key);
+
+                    foreach(var modName in kvp.Value)
+                    {
+                        uniqueModNames.Add(modName);
+                    }
                 }
+
+                rtf.Append($@"\cf3\b\f2 \u9888? FOUND {uniqueModNames.Count} CONFLICTING MODS \u9888?\b0\f0\par ");
+                rtf.Append($@"\cf3\b\f2 \u9888? FOUND {conflicts.Count} CONFLICTING FILES \u9888?\b0\f0\par\par ");
+                
+                rtf.Append(@"\f1\fs20 "); 
 
                 foreach (var group in grouped)
                 {
-                    _rtbLog.AppendText(new string('-', 60) + "\n");
-                    _rtbLog.SelectionColor = Color.Yellow;
-                    _rtbLog.SelectionFont = new Font("Segoe UI", 12, FontStyle.Bold);
-                    _rtbLog.AppendText("CONFLICT DETECTED BETWEEN:\n");
-                    _rtbLog.SelectionColor = ColorText;
-                    _rtbLog.SelectionFont = new Font("Consolas", 10, FontStyle.Regular);
+                    rtf.Append(@"\cf1 " + new string('-', 60) + @"\par ");
+                    rtf.Append(@"\cf4\b\f0\fs24 CONFLICT DETECTED BETWEEN:\b0\f1\fs20\par ");
+                    rtf.Append(@"\cf1 ");
                     
                     foreach (var line in group.Key.Split('\n'))
                     {
-                        _rtbLog.AppendText($"  • {line}\n");
+                        rtf.Append($@"  • {EscapeRtf(line)}\par ");
                     }
                     
-                    _rtbLog.AppendText($"\nOverlapping Files ({group.Value.Count}):\n");
-                    _rtbLog.SelectionColor = Color.Gray;
+                    rtf.Append($@"\cf5\par Overlapping Files ({group.Value.Count}):\par ");
                     foreach (var f in group.Value)
                     {
-                        _rtbLog.AppendText($"  -> {f}\n");
+                        rtf.Append($@"  -> {EscapeRtf(f)}\par ");
                     }
-                    _rtbLog.SelectionColor = ColorText;
-                    _rtbLog.AppendText("\n");
+                    rtf.Append(@"\cf1\par ");
                 }
             }
-            _rtbLog.SelectionStart = 0;
-            _rtbLog.ScrollToCaret();
+
+            rtf.Append("}");
+            _rtbLog.Rtf = rtf.ToString();
         }
 
-        private void ShowSetupView()
+        private string ColorToRtf(Color c)
         {
-            _pnlMain.Visible = false; _pnlSetup.Visible = true; _pnlSetup.BringToFront();
-            _txtSteam.Text = _config.SteamPath; _txtKcd2.Text = _config.Kcd2Path;
-            if (string.IsNullOrEmpty(_txtSteam.Text)) RunAutoDetect();
+            return $@"\red{c.R}\green{c.G}\blue{c.B};";
+        }
+
+        private string EscapeRtf(string text)
+        {
+            return text.Replace(@"\", @"\\").Replace("{", @"\{").Replace("}", @"\}");
+        }
+
+        private void ShowSetupView(bool isFirstRun = false)
+        {
+            _pnlMain.Visible = false;
+            _pnlSetup.Visible = true;
+            _pnlSetup.BringToFront();
+            _txtSteam.Text = _config.SteamPath;
+            _txtKcd2.Text = _config.Kcd2Path;
+            
+            if (isFirstRun)
+            {
+                _btnSave.Text = "Continue";
+                if (string.IsNullOrEmpty(_txtSteam.Text)) 
+                    RunAutoDetect(true); 
+            }
+            else
+            {
+                _btnSave.Text = "Save";
+            }
         }
 
         private void ShowMainView() 
         { 
             _pnlSetup.Visible = false; _pnlMain.Visible = true; _pnlMain.BringToFront(); 
+            UpdateWorkshopStatus();
+        }
+
+        private void UpdateWorkshopStatus()
+        {
+            if (string.IsNullOrEmpty(_config.SteamPath))
+            {
+                _lblWorkshopStatus.Text = "Steam Workshop: disabled";
+                _lblWorkshopStatus.ForeColor = Color.Gray;
+            }
+            else
+            {
+                bool enabled = _scanner.CheckWorkshopStatus(_config.SteamPath);
+                if (enabled)
+                {
+                    _lblWorkshopStatus.Text = "Steam Workshop: enabled";
+                    _lblWorkshopStatus.ForeColor = Color.Gray;
+                }
+                else
+                {
+                    _lblWorkshopStatus.Text = "Steam Workshop: unavailable";
+                    _lblWorkshopStatus.ForeColor = Color.Gray;
+                }
+            }
         }
 
         private void LoadConfig()
@@ -483,7 +589,11 @@ namespace KCD2ModConflictChecker
                 File.WriteAllText(_configFile, json); 
             } catch { } 
         }
-        private bool IsConfigValid() { return Directory.Exists(_config.SteamPath) && Directory.Exists(_config.Kcd2Path); }
+        
+        private bool IsConfigValid() 
+        { 
+            return Directory.Exists(_config.Kcd2Path); 
+        }
     }
 
     public class DarkButton : Button
@@ -514,6 +624,11 @@ namespace KCD2ModConflictChecker
     {
         [DllImport("uxtheme.dll", ExactSpelling = true, CharSet = CharSet.Unicode)]
         private static extern int SetWindowTheme(IntPtr hwnd, string pszSubAppName, string? pszSubIdList);
+
+        public DarkRichTextBox()
+        {
+            this.HideSelection = false; 
+        }
 
         protected override void CreateHandle()
         {
