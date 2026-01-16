@@ -151,12 +151,27 @@ namespace KCD2ModConflictChecker
             foreach (var dir in dirs)
             {
                 string folderName = Path.GetFileName(dir);
+
+                if (folderName.Contains("ptf", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
                 string modName = ResolveModName(rootFolder, folderName, sourceType);
 
                 var pakFiles = Directory.GetFiles(dir, "*.pak", SearchOption.AllDirectories);
                 
                 foreach (var fullPath in pakFiles)
                 {
+                    var pakContents = ScanPakContents(fullPath);
+                    if (pakContents.Count > 0 && pakContents.All(f => f.EndsWith(".xml", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        if (pakContents.All(f => Path.GetFileName(f).Contains("__")))
+                        {
+                            continue;
+                        }
+                    }
+
                     string pakName = Path.GetFileNameWithoutExtension(fullPath);
                     string displayName;
                     
@@ -167,8 +182,7 @@ namespace KCD2ModConflictChecker
 
                     ScannedMods.Add(displayName);
 
-                    var internalFiles = ScanPakContents(fullPath);
-                    foreach (var internalFile in internalFiles)
+                    foreach (var internalFile in pakContents)
                     {
                         if (!_fileMap.ContainsKey(internalFile))
                             _fileMap[internalFile] = new List<(string, string, string)>();
