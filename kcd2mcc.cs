@@ -259,8 +259,9 @@ namespace KCD2ModConflictChecker
         public MainForm()
         {
             this.Text = "KCD2 Mod Conflict Checker";
-            this.Size = new Size(800, 700);
-            this.FormBorderStyle = FormBorderStyle.FixedSingle;
+            this.Size = new Size(800, 600);
+            this.MinimumSize = new Size(800, 600);
+            this.FormBorderStyle = FormBorderStyle.Sizable;
             this.MaximizeBox = false;
             this.BackColor = ColorBg;
             this.ForeColor = ColorText;
@@ -286,6 +287,8 @@ namespace KCD2ModConflictChecker
             InitializeCustomComponents();
             LoadConfig();
 
+            this.Resize += (s, e) => UpdateLogScale();
+
             if (IsConfigValid())
                 ShowMainView();
             else
@@ -298,40 +301,58 @@ namespace KCD2ModConflictChecker
             this.Controls.Add(_pnlContainer);
 
             _pnlSetup = new Panel { Dock = DockStyle.Fill, Visible = false };
-            
+
+            var setupContent = new Panel 
+            { 
+                Size = new Size(800, 600), 
+                BackColor = Color.Transparent 
+            };
+
             var lblSetupTitle = CreateLabel("KCD2 Mod Conflict Checker", 24, FontStyle.Bold);
             lblSetupTitle.Location = new Point(20, 170);
             lblSetupTitle.AutoSize = false;
             lblSetupTitle.Size = new Size(760, 40);
             lblSetupTitle.TextAlign = ContentAlignment.MiddleCenter;
-            _pnlSetup.Controls.Add(lblSetupTitle);
+            setupContent.Controls.Add(lblSetupTitle);
 
-            _pnlSetup.Controls.Add(CreateLabel("KCD2 Installation:", 10, FontStyle.Regular, 80, 250));
+            setupContent.Controls.Add(CreateLabel("KCD2 Installation:", 10, FontStyle.Regular, 80, 250));
             _txtKcd2 = new DarkTextBox { Location = new Point(230, 250), Width = 400 };
-            _pnlSetup.Controls.Add(_txtKcd2);
+            setupContent.Controls.Add(_txtKcd2);
+            
             var btnBrowseKcd = new DarkButton { Text = "Browse", Location = new Point(640, 248), Size = new Size(80, 26) };
             btnBrowseKcd.Click += (s, e) => { string? p = BrowseFolder(); if (p != null) _txtKcd2.Text = p; };
-            _pnlSetup.Controls.Add(btnBrowseKcd);
+            setupContent.Controls.Add(btnBrowseKcd);
 
             var lblOptional = CreateLabel("Optional", 10, FontStyle.Italic, 0, 300);
             lblOptional.ForeColor = Color.Gray;
-            _pnlSetup.Controls.Add(lblOptional);
+            setupContent.Controls.Add(lblOptional);
 
-            _pnlSetup.Controls.Add(CreateLabel("Steam Installation:", 10, FontStyle.Regular, 80, 300));
+            setupContent.Controls.Add(CreateLabel("Steam Installation:", 10, FontStyle.Regular, 80, 300));
 
             _txtSteam = new DarkTextBox { Location = new Point(230, 300), Width = 400 };
-            _pnlSetup.Controls.Add(_txtSteam);
+            setupContent.Controls.Add(_txtSteam);
+            
             var btnBrowseSteam = new DarkButton { Text = "Browse", Location = new Point(640, 298), Size = new Size(80, 26) };
             btnBrowseSteam.Click += (s, e) => { string? p = BrowseFolder(); if (p != null) _txtSteam.Text = p; };
-            _pnlSetup.Controls.Add(btnBrowseSteam);
+            setupContent.Controls.Add(btnBrowseSteam);
 
             var btnDetect = new DarkButton { Text = "Auto-Detect Paths", Location = new Point(250, 370), Size = new Size(300, 35) };
             btnDetect.Click += (s, e) => RunAutoDetect(false);
-            _pnlSetup.Controls.Add(btnDetect);
+            setupContent.Controls.Add(btnDetect);
 
             _btnSave = new DarkButton { Text = "Continue", Location = new Point(250, 430), Size = new Size(300, 45), BackColor = ColorAccent };
             _btnSave.Click += (s, e) => ValidateAndSave();
-            _pnlSetup.Controls.Add(_btnSave);
+            setupContent.Controls.Add(_btnSave);
+
+            _pnlSetup.Controls.Add(setupContent);
+
+            _pnlSetup.SizeChanged += (s, e) => 
+            {
+                setupContent.Left = (_pnlSetup.Width - setupContent.Width) / 2;
+                setupContent.Top = (_pnlSetup.Height - setupContent.Height) / 2;
+            };
+
+            _pnlSetup.PerformLayout(); 
             _pnlContainer.Controls.Add(_pnlSetup);
 
             _pnlMain = new Panel { Dock = DockStyle.Fill, Visible = false };
@@ -341,18 +362,28 @@ namespace KCD2ModConflictChecker
             var lblMainTitle = CreateLabel("KCD2 Mod Conflict Checker", 18, FontStyle.Bold, 0, 7);
             lblMainTitle.AutoSize = true;
             topBar.Controls.Add(lblMainTitle);
+
+            var rightPanel = new FlowLayoutPanel
+            {
+                Dock = DockStyle.Right,
+                FlowDirection = FlowDirection.RightToLeft,
+                AutoSize = true,
+                WrapContents = false,
+                Padding = new Padding(0, 10, 0, 0)
+            };
+
+            var btnSettings = new DarkButton { Text = "⚙ Settings", Size = new Size(100, 30) };
+            btnSettings.Click += (s, e) => ShowSetupView(false);
+            rightPanel.Controls.Add(btnSettings);
             
             _lblWorkshopStatus = CreateLabel("", 9, FontStyle.Regular);
-            _lblWorkshopStatus.ForeColor = Color.Gray;
             _lblWorkshopStatus.AutoSize = false;
+            _lblWorkshopStatus.Size = new Size(200, 30);
             _lblWorkshopStatus.TextAlign = ContentAlignment.MiddleRight;
-            _lblWorkshopStatus.Size = new Size(250, 30);
-            _lblWorkshopStatus.Location = new Point(380, 10); 
-            topBar.Controls.Add(_lblWorkshopStatus);
+            rightPanel.Controls.Add(_lblWorkshopStatus);
 
-            var btnSettings = new DarkButton { Text = "⚙ Settings", Size = new Size(100, 30), Location = new Point(640, 10) };
-            btnSettings.Click += (s, e) => ShowSetupView(false);
-            topBar.Controls.Add(btnSettings);
+            topBar.Controls.Add(rightPanel);
+
             _pnlMain.Controls.Add(topBar);
 
             var actionArea = new Panel { Dock = DockStyle.Top, Height = 80, Padding = new Padding(0, 10, 0, 10) };
@@ -368,7 +399,7 @@ namespace KCD2ModConflictChecker
                 BackColor = ColorPanel, 
                 ForeColor = ColorText, 
                 BorderStyle = BorderStyle.None, 
-                Font = new Font("Consolas", 10), 
+                Font = new Font("Consolas", 12), 
                 ReadOnly = true, 
                 Text = "Ready to scan..." 
             };
@@ -380,6 +411,21 @@ namespace KCD2ModConflictChecker
             logContainer.BringToFront();
 
             _pnlContainer.Controls.Add(_pnlMain);
+        }
+
+        private void UpdateLogScale()
+        {
+            if (_rtbLog == null || this.WindowState == FormWindowState.Minimized) return;
+
+            float scale = (float)this.Width / 800f;
+
+            if (scale < 0.5f) scale = 0.5f;
+            if (scale > 4.0f) scale = 4.0f;
+
+            if (Math.Abs(_rtbLog.ZoomFactor - scale) > 0.01f)
+            {
+                _rtbLog.ZoomFactor = scale;
+            }
         }
 
         private Label CreateLabel(string text, float size, FontStyle style, int x = 0, int y = 0)
@@ -523,6 +569,8 @@ namespace KCD2ModConflictChecker
 
             rtf.Append("}");
             _rtbLog.Rtf = rtf.ToString();
+
+            UpdateLogScale();
         }
 
         private string ColorToRtf(Color c)
